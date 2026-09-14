@@ -19,7 +19,7 @@ fn test_prompt_input_single_string() {
     assert_eq!(req.prompt.len(), 1);
     assert!(!req.prompt.is_empty());
     assert!(!req.prompt.is_token_based());
-    assert_eq!(req.prompt.extract_text_for_routing(), "Hello, world!");
+    assert_eq!(req.prompt.extract_text_for_routing(), "\u{1d}Hello, world!");
 }
 
 #[test]
@@ -43,7 +43,10 @@ fn test_prompt_input_string_array() {
     assert_eq!(req.prompt.len(), 3);
     assert!(!req.prompt.is_empty());
     assert!(!req.prompt.is_token_based());
-    assert_eq!(req.prompt.extract_text_for_routing(), "Hello world test");
+    assert_eq!(
+        req.prompt.extract_text_for_routing(),
+        "\u{1d}Hello world test"
+    );
 }
 
 #[test]
