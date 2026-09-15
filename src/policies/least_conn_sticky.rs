@@ -91,6 +91,9 @@ impl LoadBalancingPolicy for LeastConnStickyPolicy {
             map.insert(session_key.clone(), workers[selected_idx].url().to_string());
         }
 
+        // Increment load so subsequent new sessions in the same burst see the updated count
+        workers[selected_idx].increment_load();
+
         info!(
             "Least-conn-sticky: new session '{}' -> worker '{}' (index={}, load={})",
             session_key,
