@@ -15,6 +15,9 @@ use tracing::info;
 pub struct LeastConnStickyPolicy {
     session_map: RwLock<HashMap<String, String>>,
     cached_loads: RwLock<HashMap<String, isize>>,
+    /// Tracks session assignments per worker so find_least_loaded can break ties
+    /// without double-counting with the HTTP layer's increment_load/decrement_load.
+    session_counts: RwLock<HashMap<String, usize>>,
 }
 
 impl LeastConnStickyPolicy {
@@ -22,6 +25,7 @@ impl LeastConnStickyPolicy {
         Self {
             session_map: RwLock::new(HashMap::new()),
             cached_loads: RwLock::new(HashMap::new()),
+            session_counts: RwLock::new(HashMap::new()),
         }
     }
 
@@ -31,7 +35,13 @@ impl LeastConnStickyPolicy {
                 return load;
             }
         }
-        worker.load() as isize
+        let base = worker.load() as isize;
+        let extra = self.session_counts
+            .read()
+            .ok()
+            .and_then(|c| c.get(worker.url()).copied())
+            .unwrap_or(0) as isize;
+        base + extra
     }
 
     fn find_least_loaded(&self, workers: &[Arc<dyn Worker>], healthy_indices: &[usize]) -> usize {
@@ -87,12 +97,13 @@ impl LoadBalancingPolicy for LeastConnStickyPolicy {
         // New session or mapped worker is unhealthy: pick least loaded
         let selected_idx = self.find_least_loaded(workers, &healthy_indices);
 
+        let worker_url = workers[selected_idx].url().to_string();
         if let Ok(mut map) = self.session_map.write() {
-            map.insert(session_key.clone(), workers[selected_idx].url().to_string());
+            map.insert(session_key.clone(), worker_url.clone());
         }
-
-        // Increment load so subsequent new sessions in the same burst see the updated count
-        workers[selected_idx].increment_load();
+        if let Ok(mut counts) = self.session_counts.write() {
+            *counts.entry(worker_url).or_insert(0) += 1;
+        }
 
         info!(
             "Least-conn-sticky: new session '{}' -> worker '{}' (index={}, load={})",
