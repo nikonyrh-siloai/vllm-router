@@ -18,7 +18,9 @@ use tracing::info;
 /// If the assigned worker becomes unhealthy, the session is re-assigned.
 #[derive(Debug)]
 pub struct LeastConnStickyPolicy {
-    /// Maps session keys to their assigned worker URLs
+    /// Maps session keys to their assigned worker URLs.
+    /// TODO: this map grows without bound; add TTL-based eviction (see vllm-project/router#235
+    /// for an implementation with session expiry and explicit release).
     session_map: RwLock<HashMap<String, String>>,
     /// Cached load information from external monitoring
     cached_loads: RwLock<HashMap<String, isize>>,
